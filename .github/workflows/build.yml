@@ -1,39 +1,74 @@
-name: Build APK
-on: [push]
+name: Build Python/Pygame Android App
+
+on:
+  push:
+    branches: [ main ]  # Uruchom przy push do gałęzi main
+  pull_request:
+    branches: [ main ]  # Uruchom przy pull request do gałęzi main
+  workflow_dispatch:   # Umożliwia ręczne uruchomienie workflow z zakładki Actions w GitHub
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-android:
+    runs-on: ubuntu-latest # Używamy najnowszej stabilnej wersji Ubuntu dostępnej w GitHub Actions
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout repository # Krok 1: Pobranie kodu repozytorium
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
+    - name: Set up Python # Krok 2: Konfiguracja środowiska Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10' # Możesz zmienić na wersję Pythona używaną w Twoim projekcie
 
-      - name: Install Android SDK and NDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            cmdline-tools;latest  
-            build-tools;34.0.0
-            ndk;25.1.8937393      
-          accept-android-sdk-licenses: true
+    - name: Set up Java Development Kit (JDK) # Krok 3: Konfiguracja Javy (wymaganej przez Android SDK)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin' # Popularna dystrybucja OpenJDK
+        java-version: '11' # Buildozer często dobrze działa z JDK 11 lub 17
 
-      - name: Install Buildozer
-        run: |
-          pip install buildozer cython==0.29.33
+    - name: Install dependencies for Buildozer # Krok 4: Instalacja systemowych zależności Buildozera
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git \
+          zip \
+          unzip \
+          build-essential \
+          python3-dev \
+          libsdl2-dev \
+          libsdl2-image-dev \
+          libsdl2-mixer-dev \
+          libsdl2-ttf-dev \
+          libffi-dev \
+          libssl-dev \
+          liblzma-dev \
+          libbz2-dev \
+          libncursesw5-dev \
+          libgdbm-compat-dev \
+          libsqlite3-dev \
+          libreadline-dev \
+          uuid-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          ccache # Ccache przyspiesza kompilację (Buildozer go używa)
 
-      - name: Build APK
-        run: |
-          export ANDROID_SDK_ROOT=$ANDROID_HOME
-          export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/25.1.8937393
-          buildozer android debug
+    - name: Install Python dependencies (including Buildozer) # Krok 5: Instalacja Buildozera i zależności Pythona z requirements.txt
+      run: |
+        python -m pip install --upgrade pip
+        pip install buildozer cython # Cython jest często potrzebny
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug.apk
-          path: bin/*.apk
+    - name: Initialize Buildozer (if needed - usually spec file exists) # Krok 6: Opcjonalnie - inicjalizacja, jeśli nie masz pliku .spec
+      # run: buildozer init # Odkomentuj tylko jeśli NIE masz pliku buildozer.spec w repozytorium
+
+    - name: Build with Buildozer # Krok 7: Budowanie APK (wersja debug)
+      run: |
+        buildozer -v android debug # Używamy flagi -v dla bardziej szczegółowych logów
+
+    - name: Upload APK Artifact # Krok 8: Przesłanie zbudowanego pliku APK jako artefaktu
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk-debug # Nazwa artefaktu
+        path: bin/*.apk # Ścieżka do pliku APK (Buildozer domyślnie umieszcza go w katalogu bin)
+        if-no-files-found: error # Zgłoś błąd, jeśli plik APK nie został znaleziony
