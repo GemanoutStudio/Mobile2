@@ -1,4 +1,4 @@
-name: Build Python/Pygame Android App
+name: Build Python/Pygame Android App (Docker)
 
 on:
   push:
@@ -9,179 +9,66 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # System operacyjny hosta dla runnera
+
+    # Używamy kontenera Docker z preinstalowanym środowiskiem
+    container:
+      # Obraz kivy/buildozer zawiera Javę, Android SDK/NDK, zależności systemowe i buildozera
+      # Użycie ":latest" da najnowszą wersję, ale może być mniej stabilne.
+      # Możesz spróbować znaleźć bardziej konkretny tag, jeśli ":latest" zawiedzie.
+      image: kivy/buildozer:latest
 
     steps:
-      # Krok 1: Pobranie kodu repozytorium
+      # Krok 1: Pobranie kodu repozytorium DO kontenera
+      # Kod źródłowy aplikacji musi być dostępny wewnątrz kontenera.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Krok 2: Konfiguracja środowiska Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10' # Użyj wersji zgodnej z Twoim projektem
-
-      # Krok 3: Konfiguracja Javy (JDK) - Wersja zmieniona na 17
-      - name: Set up Java Development Kit (JDK)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17' # Wymagane przez nowsze narzędzia SDK
-
-      # Krok 4: Instalacja podstawowych zależności systemowych
-      - name: Install base system dependencies
+      # Krok 2: (Opcjonalnie) Instalacja zależności Pythona z requirements.txt
+      # Buildozer jest już w obrazie, ale mogą być potrzebne biblioteki Twojego projektu.
+      - name: Install project Python dependencies (if needed)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip build-essential python3-dev libffi-dev libssl-dev liblzma-dev libbz2-dev libncursesw5-dev libgdbm-compat-dev libsqlite3-dev libreadline-dev uuid-dev autoconf libtool pkg-config ccache
-
-      # Krok 5: Konfiguracja Android SDK i NDK
-      - name: Set up Android SDK & NDK
-        uses: android-actions/setup-android@v3.0.0 # Ta akcja ustawia ANDROID_HOME i ANDROID_NDK_HOME
-
-      # Krok 6: Instalacja komponentów SDK/NDK - Wersja NDK zmieniona na r25c
-      # Krok 6: Instalacja komponentów SDK/NDK - Dodano debugowanie
-      - name: Install Android SDK Components
-        env:
-          ANDROID_PLATFORM: "33"
-          ANDROID_BUILD_TOOLS: "34.0.0"
-          ANDROID_NDK: "26.1.10909125" # Upewnij się, że tu jest r25c!
-        run: |
-          echo "Akceptowanie licencji SDK..."
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || echo "Nie udało się zaakceptować licencji (może już zaakceptowane)."
-
-          # ===>>> DODANO DEBUGOWANIE: Wyświetl dostępne pakiety NDK <<<===
-          echo "Listowanie dostępnych pakietów NDK..."
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "ndk;" || echo "Nie znaleziono dostępnych pakietów NDK lub błąd listowania."
-
-          echo "Przygotowanie do instalacji komponentów SDK/NDK..."
-          # Budujemy komendę jako zmienną dla przejrzystości
-          SDKMANAGER_CMD="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            \"platform-tools\" \
-            \"platforms;android-${ANDROID_PLATFORM}\" \
-            \"build-tools;${ANDROID_BUILD_TOOLS}\" \
-            \"ndk;${ANDROID_NDK}\""
-
-          # ===>>> DODANO DEBUGOWANIE: Wyświetl komendę przed wykonaniem <<<===
-          echo "--- Wykonywana komenda sdkmanager: ---"
-          echo "$SDKMANAGER_CMD"
-          echo "-------------------------------------"
-
-          # Wykonanie komendy
-          eval "$SDKMANAGER_CMD" # Używamy eval, aby poprawnie obsłużyć cudzysłowy w ścieżkach/nazwach
-
-          echo "Komponenty SDK/NDK zainstalowane (lub próba instalacji zakończona)."
-          # Reszta skryptu sprawdzającego ścieżkę NDK...
-          INSTALLED_NDK_PATH=$(find $ANDROID_HOME/ndk -mindepth 1 -maxdepth 1 -type d | head -n 1)
-          if [ -n "$INSTALLED_NDK_PATH" ]; then
-             echo "Znaleziono NDK w: $INSTALLED_NDK_PATH"
-             echo "ANDROID_NDK_HOME=$INSTALLED_NDK_PATH" >> $GITHUB_ENV
-             export ANDROID_NDK_HOME=$INSTALLED_NDK_PATH
+          echo "Attempting to install requirements from requirements.txt if it exists..."
+          # Sprawdźmy wersję pip i python dla informacji
+          python --version
+          pip --version
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+             echo "requirements.txt found, installing..."
+             pip install -r requirements.txt
           else
-             echo "Ostrzeżenie: Nie można było automatycznie znaleźć ścieżki NDK w $ANDROID_HOME/ndk."
+             echo "requirements.txt not found, skipping pip install."
           fi
-          echo "ANDROID_HOME ustawione na: $ANDROID_HOME"
-          echo "ANDROID_NDK_HOME (po sprawdzeniu) ustawione na: $ANDROID_NDK_HOME"
-      # Krok 7: Weryfikacja AIDL (bardziej rygorystyczny)
-      - name: Verify AIDL tool presence and permissions
-        env:
-           ANDROID_BUILD_TOOLS: "34.0.0" # Ta sama wersja co instalowana
-        run: |
-          echo "Weryfikowanie narzędzia aidl..."
-          AIDL_PATH="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aidl"
-          echo "Oczekiwana ścieżka AIDL: $AIDL_PATH"
-          if [ -f "$AIDL_PATH" ]; then
-            echo "Plik AIDL znaleziony."
-            ls -l "$AIDL_PATH" # Pokaż uprawnienia
-            if [ ! -x "$AIDL_PATH" ]; then
-              echo "AIDL nie jest wykonywalny, próba nadania uprawnień (chmod +x)..."
-              chmod +x "$AIDL_PATH"
-              ls -l "$AIDL_PATH" # Sprawdź ponownie uprawnienia
-              if [ -x "$AIDL_PATH" ]; then
-                 echo "AIDL jest teraz wykonywalny."
-              else
-                 echo "BŁĄD: Nie udało się nadać uprawnień wykonywania dla AIDL!"
-                 exit 1 # Zakończ workflow z błędem
-              fi
-            else
-               echo "AIDL ma już uprawnienia do wykonania."
-            fi
-          else
-            echo "BŁĄD: Plik AIDL NIE ZOSTAŁ ZNALEZIONY w oczekiwanej ścieżce po instalacji!"
-            echo "Listowanie zawartości katalogu $ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/ :"
-            ls -la "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/" || echo "Nie można wylistować katalogu build-tools."
-            exit 1 # Zakończ workflow z błędem
-          fi
-          echo "Weryfikacja AIDL zakończona pomyślnie."
+          echo "Project Python dependencies installation step finished."
 
-      # Krok 8: Instalacja zależności Python (w tym Buildozer)
-      - name: Install Python dependencies (including Buildozer)
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade buildozer cython # Upewnij się, że buildozer jest aktualny
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          echo "Zależności Python zainstalowane."
-
-      # Krok 9: Czyszczenie lokalnego stanu Buildozera (jeśli istnieje)
+      # Krok 3: Czyszczenie lokalnego stanu Buildozera (dobra praktyka, na wszelki wypadek)
       - name: Clean local Buildozer state (if exists)
         run: |
-           echo "Sprawdzanie istnienia lokalnego katalogu .buildozer..."
+           echo "Checking for local .buildozer directory..."
            if [ -d ".buildozer" ]; then
-             echo "Usuwanie istniejącego katalogu .buildozer..."
+             echo "Removing existing .buildozer directory..."
              rm -rf .buildozer
            else
-             echo "Lokalny katalog .buildozer nie znaleziony (OK)."
+             echo "Local .buildozer directory not found (OK)."
            fi
 
-            # Krok 10: Budowanie APK (bardzo szczegółowe logi) - Dodano PATH i export
-      - name: Build debug APK with Buildozer (verbose)
-        env:
-           # Przekazanie wersji do tego kroku, aby zbudować ścieżkę
-           ANDROID_BUILD_TOOLS: "34.0.0" # Ta sama wersja, co instalowana
-           ANDROID_NDK_VER: "26.1.10909125" # Ta sama wersja NDK co instalowana
+      # Krok 4: Budowanie APK za pomocą Buildozera w kontenerze
+      # Zmienne środowiskowe jak ANDROID_HOME powinny być już ustawione w obrazie Docker.
+      # Buildozer odczyta konfigurację (wersje, zależności) z pliku buildozer.spec.
+      - name: Build debug APK with Buildozer
         run: |
-          echo "Rozpoczynanie procesu budowania Buildozer..."
-          # Upewnijmy się, że zmienne są widoczne w tym kroku
-          echo "Używane ANDROID_HOME: $ANDROID_HOME"
-          echo "Używane ANDROID_NDK_HOME: $ANDROID_NDK_HOME" # Powinno być ustawione przez GITHUB_ENV z kroku 6
-          echo "Oczekiwana wersja Build Tools: $ANDROID_BUILD_TOOLS"
-          echo "Oczekiwana wersja NDK: $ANDROID_NDK_VER"
-
-          # ===>>> DODANO: Dodanie ścieżki do build-tools do systemowego PATH <<<===
-          BUILD_TOOLS_PATH="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
-          if [ -d "$BUILD_TOOLS_PATH" ]; then
-            echo "Dodawanie $BUILD_TOOLS_PATH do PATH"
-            export PATH="$BUILD_TOOLS_PATH:$PATH"
-            echo "Aktualny PATH: $PATH"
-            # Sprawdźmy, czy aidl jest teraz w PATH
-            echo "Sprawdzanie 'which aidl': $(which aidl || echo 'aidl nie znaleziony w PATH')"
-          else
-            echo "Ostrzeżenie: Katalog build-tools '$BUILD_TOOLS_PATH' nie istnieje!"
-          fi
-
-          # ===>>> MODYFIKACJA: Eksport zmiennych bezpośrednio przed buildozer <<<===
-          # Chociaż GITHUB_ENV powinien działać, robimy to jeszcze raz dla pewności
-          # Jeśli ANDROID_NDK_HOME nie został poprawnie przekazany z GITHUB_ENV, spróbujmy go ustawić ręcznie
-          if [ -z "$ANDROID_NDK_HOME" ]; then
-             echo "ANDROID_NDK_HOME jest pusty, próba ustawienia na $ANDROID_HOME/ndk/$ANDROID_NDK_VER"
-             export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$ANDROID_NDK_VER"
-             # Sprawdźmy czy katalog istnieje
-             if [ ! -d "$ANDROID_NDK_HOME" ]; then
-                 echo "OSTRZEŻENIE: Ręcznie ustawiony ANDROID_NDK_HOME nie istnieje: $ANDROID_NDK_HOME"
-             fi
-          fi
-          export ANDROID_HOME=$ANDROID_HOME
-          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME # Używamy wartości (potencjalnie ręcznie ustawionej)
-          echo "Finalne ANDROID_HOME przed buildozer: $ANDROID_HOME"
-          echo "Finalne ANDROID_NDK_HOME przed buildozer: $ANDROID_NDK_HOME"
-
-          # Używamy -vv dla maksymalnej szczegółowości
-          echo "Uruchamianie Buildozera..."
+          echo "Starting Buildozer build process inside the container..."
+          # Możesz dodać 'env' aby zobaczyć zmienne środowiskowe w kontenerze
+          # env
+          echo "Running buildozer command..."
+          # Używamy -vv dla bardzo szczegółowych logów na wypadek problemów
           buildozer -vv android debug
-      # Krok 11: Przesłanie artefaktu
+
+      # Krok 5: Przesłanie artefaktu APK
+      # Pliki wygenerowane w kontenerze (w tym bin/*.apk) są dostępne dla tego kroku.
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk-debug
-          path: bin/*.apk
-          if-no-files-found: error # Zgłoś błąd, jeśli APK nie zostanie znaleziony
+          name: android-apk-debug-docker # Inna nazwa artefaktu dla odróżnienia
+          path: bin/*.apk # Domyślna ścieżka wyjściowa Buildozera
+          if-no-files-found: error # Zgłoś błąd, jeśli plik APK nie został znaleziony
