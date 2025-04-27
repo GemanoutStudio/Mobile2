@@ -13,15 +13,16 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install Android SDK and Build-Tools
+      - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
         with:
           packages: |
+            cmdline-tools;latest  
             build-tools;34.0.0
-            ndk;25.1.8937393
-          accept-android-sdk-licenses: yes
+            ndk;25.1.8937393      
+          accept-android-sdk-licenses: true
 
-      - name: Install Buildozer and dependencies
+      - name: Install Buildozer
         run: |
           pip install buildozer cython==0.29.33
 
