@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11' # Zalecane JDK 11 lub 17
+          java-version: '17' # Zalecane JDK 11 lub 17
 
       - name: Install base system dependencies
         run: |
