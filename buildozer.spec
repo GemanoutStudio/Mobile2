@@ -8,8 +8,8 @@ version = 1.0
 requirements = python3, pygame==2.5.0, sdl2_ttf, sdl2_image, sdl2_mixer
 android.permissions = INTERNET
 android.api = 33
-android.ndk = 25b
 android.sdk_version = 34
+android.ndk_version = 25b
 android.archs = arm64-v8a
 android.ndk_path = ~/.buildozer/android/platform/android-ndk
 android.sdk_path = ~/.buildozer/android/platform/android-sdk
