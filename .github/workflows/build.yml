@@ -133,16 +133,51 @@ jobs:
              echo "Lokalny katalog .buildozer nie znaleziony (OK)."
            fi
 
-      # Krok 10: Budowanie APK (bardzo szczegółowe logi)
+            # Krok 10: Budowanie APK (bardzo szczegółowe logi) - Dodano PATH i export
       - name: Build debug APK with Buildozer (verbose)
+        env:
+           # Przekazanie wersji do tego kroku, aby zbudować ścieżkę
+           ANDROID_BUILD_TOOLS: "34.0.0" # Ta sama wersja, co instalowana
+           ANDROID_NDK_VER: "26.1.10909125" # Ta sama wersja NDK co instalowana
         run: |
           echo "Rozpoczynanie procesu budowania Buildozer..."
-          # Upewnijmy się, że zmienne są widoczne
+          # Upewnijmy się, że zmienne są widoczne w tym kroku
           echo "Używane ANDROID_HOME: $ANDROID_HOME"
-          echo "Używane ANDROID_NDK_HOME: $ANDROID_NDK_HOME"
-          # Używamy -vv dla maksymalnej szczegółowości
-          buildozer -vv android debug
+          echo "Używane ANDROID_NDK_HOME: $ANDROID_NDK_HOME" # Powinno być ustawione przez GITHUB_ENV z kroku 6
+          echo "Oczekiwana wersja Build Tools: $ANDROID_BUILD_TOOLS"
+          echo "Oczekiwana wersja NDK: $ANDROID_NDK_VER"
 
+          # ===>>> DODANO: Dodanie ścieżki do build-tools do systemowego PATH <<<===
+          BUILD_TOOLS_PATH="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+          if [ -d "$BUILD_TOOLS_PATH" ]; then
+            echo "Dodawanie $BUILD_TOOLS_PATH do PATH"
+            export PATH="$BUILD_TOOLS_PATH:$PATH"
+            echo "Aktualny PATH: $PATH"
+            # Sprawdźmy, czy aidl jest teraz w PATH
+            echo "Sprawdzanie 'which aidl': $(which aidl || echo 'aidl nie znaleziony w PATH')"
+          else
+            echo "Ostrzeżenie: Katalog build-tools '$BUILD_TOOLS_PATH' nie istnieje!"
+          fi
+
+          # ===>>> MODYFIKACJA: Eksport zmiennych bezpośrednio przed buildozer <<<===
+          # Chociaż GITHUB_ENV powinien działać, robimy to jeszcze raz dla pewności
+          # Jeśli ANDROID_NDK_HOME nie został poprawnie przekazany z GITHUB_ENV, spróbujmy go ustawić ręcznie
+          if [ -z "$ANDROID_NDK_HOME" ]; then
+             echo "ANDROID_NDK_HOME jest pusty, próba ustawienia na $ANDROID_HOME/ndk/$ANDROID_NDK_VER"
+             export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$ANDROID_NDK_VER"
+             # Sprawdźmy czy katalog istnieje
+             if [ ! -d "$ANDROID_NDK_HOME" ]; then
+                 echo "OSTRZEŻENIE: Ręcznie ustawiony ANDROID_NDK_HOME nie istnieje: $ANDROID_NDK_HOME"
+             fi
+          fi
+          export ANDROID_HOME=$ANDROID_HOME
+          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME # Używamy wartości (potencjalnie ręcznie ustawionej)
+          echo "Finalne ANDROID_HOME przed buildozer: $ANDROID_HOME"
+          echo "Finalne ANDROID_NDK_HOME przed buildozer: $ANDROID_NDK_HOME"
+
+          # Używamy -vv dla maksymalnej szczegółowości
+          echo "Uruchamianie Buildozera..."
+          buildozer -vv android debug
       # Krok 11: Przesłanie artefaktu
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
