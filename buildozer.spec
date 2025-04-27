@@ -5,7 +5,7 @@ package.name = farmlanddemo
 package.domain = gemanout.fld
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas # Dostosuj rozszerzenia do swoich plików
-
+version = 1.0  # Lub inna wersja, np. 0.1
 # Wymagania Python i przepisy python-for-android
 requirements = python3,pygame==2.5.0 # Lub inna wersja pygame, jeśli potrzebujesz
 
