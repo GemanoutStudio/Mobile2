@@ -12,36 +12,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Krok 1: Pobranie kodu repozytorium
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Krok 2: Konfiguracja środowiska Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Użyj zgodnej wersji
+          python-version: '3.10' # Użyj wersji zgodnej z Twoim projektem
 
+      # Krok 3: Konfiguracja Javy (JDK) - Wersja zmieniona na 17
       - name: Set up Java Development Kit (JDK)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # Zalecane JDK 11 lub 17
+          java-version: '17' # Wymagane przez nowsze narzędzia SDK
 
+      # Krok 4: Instalacja podstawowych zależności systemowych
       - name: Install base system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git zip unzip build-essential python3-dev libffi-dev libssl-dev liblzma-dev libbz2-dev libncursesw5-dev libgdbm-compat-dev libsqlite3-dev libreadline-dev uuid-dev autoconf libtool pkg-config ccache
 
-      # Krok konfiguracji SDK i NDK
+      # Krok 5: Konfiguracja Android SDK i NDK
       - name: Set up Android SDK & NDK
         uses: android-actions/setup-android@v3.0.0 # Ta akcja ustawia ANDROID_HOME i ANDROID_NDK_HOME
 
-      # Krok instalacji komponentów SDK/NDK
+      # Krok 6: Instalacja komponentów SDK/NDK - Wersja NDK zmieniona na r25c
       - name: Install Android SDK Components
         env:
           # Definiujemy wersje TUTAJ, aby łatwo je było zsynchronizować z buildozer.spec
           ANDROID_PLATFORM: "33"        # Musi pasować do android.target w .spec
           ANDROID_BUILD_TOOLS: "34.0.0" # Musi pasować do android.build_tools_version w .spec
-          ANDROID_NDK: "25b"            # Musi pasować do android.ndk_version w .spec
+          ANDROID_NDK: "r25c"           # Musi pasować do android.ndk_version w .spec (zmieniono z 25b)
         run: |
           echo "Akceptowanie licencji SDK..."
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || echo "Nie udało się zaakceptować licencji (może już zaakceptowane)."
@@ -53,14 +57,11 @@ jobs:
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK}"
           echo "Komponenty SDK/NDK zainstalowane."
-          # Dodatkowe sprawdzenie i eksport ANDROID_NDK_HOME (chociaż akcja setup-android powinna to robić)
-          # sdkmanager zazwyczaj instaluje NDK w $ANDROID_HOME/ndk/<version>
+          # Dodatkowe sprawdzenie i eksport ANDROID_NDK_HOME
           INSTALLED_NDK_PATH=$(find $ANDROID_HOME/ndk -mindepth 1 -maxdepth 1 -type d | head -n 1)
           if [ -n "$INSTALLED_NDK_PATH" ]; then
              echo "Znaleziono NDK w: $INSTALLED_NDK_PATH"
-             # Upewniamy się, że jest w GITHUB_ENV
              echo "ANDROID_NDK_HOME=$INSTALLED_NDK_PATH" >> $GITHUB_ENV
-             # Eksportujemy też dla bieżącego kroku i następnych
              export ANDROID_NDK_HOME=$INSTALLED_NDK_PATH
           else
              echo "Ostrzeżenie: Nie można było automatycznie znaleźć ścieżki NDK w $ANDROID_HOME/ndk."
@@ -69,7 +70,7 @@ jobs:
           echo "ANDROID_HOME ustawione na: $ANDROID_HOME"
           echo "ANDROID_NDK_HOME (po sprawdzeniu) ustawione na: $ANDROID_NDK_HOME"
 
-      # Krok weryfikacji AIDL (bardziej rygorystyczny)
+      # Krok 7: Weryfikacja AIDL (bardziej rygorystyczny)
       - name: Verify AIDL tool presence and permissions
         env:
            ANDROID_BUILD_TOOLS: "34.0.0" # Ta sama wersja co instalowana
@@ -83,8 +84,7 @@ jobs:
             if [ ! -x "$AIDL_PATH" ]; then
               echo "AIDL nie jest wykonywalny, próba nadania uprawnień (chmod +x)..."
               chmod +x "$AIDL_PATH"
-              # Sprawdź ponownie uprawnienia
-              ls -l "$AIDL_PATH"
+              ls -l "$AIDL_PATH" # Sprawdź ponownie uprawnienia
               if [ -x "$AIDL_PATH" ]; then
                  echo "AIDL jest teraz wykonywalny."
               else
@@ -102,7 +102,7 @@ jobs:
           fi
           echo "Weryfikacja AIDL zakończona pomyślnie."
 
-      # Krok instalacji zależności Python (w tym Buildozer)
+      # Krok 8: Instalacja zależności Python (w tym Buildozer)
       - name: Install Python dependencies (including Buildozer)
         run: |
           python -m pip install --upgrade pip
@@ -110,7 +110,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           echo "Zależności Python zainstalowane."
 
-      # Krok czyszczenia lokalnego stanu Buildozera
+      # Krok 9: Czyszczenie lokalnego stanu Buildozera (jeśli istnieje)
       - name: Clean local Buildozer state (if exists)
         run: |
            echo "Sprawdzanie istnienia lokalnego katalogu .buildozer..."
@@ -121,7 +121,7 @@ jobs:
              echo "Lokalny katalog .buildozer nie znaleziony (OK)."
            fi
 
-      # Krok budowania APK (bardzo szczegółowe logi)
+      # Krok 10: Budowanie APK (bardzo szczegółowe logi)
       - name: Build debug APK with Buildozer (verbose)
         run: |
           echo "Rozpoczynanie procesu budowania Buildozer..."
@@ -131,7 +131,7 @@ jobs:
           # Używamy -vv dla maksymalnej szczegółowości
           buildozer -vv android debug
 
-      # Krok przesyłania artefaktu
+      # Krok 11: Przesłanie artefaktu
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
