@@ -40,24 +40,38 @@ jobs:
         uses: android-actions/setup-android@v3.0.0 # Ta akcja ustawia ANDROID_HOME i ANDROID_NDK_HOME
 
       # Krok 6: Instalacja komponentów SDK/NDK - Wersja NDK zmieniona na r25c
+      # Krok 6: Instalacja komponentów SDK/NDK - Dodano debugowanie
       - name: Install Android SDK Components
         env:
-          # Definiujemy wersje TUTAJ, aby łatwo je było zsynchronizować z buildozer.spec
-          ANDROID_PLATFORM: "33"        # Musi pasować do android.target w .spec
-          ANDROID_BUILD_TOOLS: "34.0.0" # Musi pasować do android.build_tools_version w .spec
-          ANDROID_NDK: "r25c"           # Musi pasować do android.ndk_version w .spec (zmieniono z 25b)
+          ANDROID_PLATFORM: "33"
+          ANDROID_BUILD_TOOLS: "34.0.0"
+          ANDROID_NDK: "r25c" # Upewnij się, że tu jest r25c!
         run: |
           echo "Akceptowanie licencji SDK..."
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || echo "Nie udało się zaakceptować licencji (może już zaakceptowane)."
-          echo "Instalowanie komponentów SDK/NDK..."
-          # Instalujemy platform-tools, platformę, build-tools i NDK
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-${ANDROID_PLATFORM}" \
-            "build-tools;${ANDROID_BUILD_TOOLS}" \
-            "ndk;${ANDROID_NDK}"
-          echo "Komponenty SDK/NDK zainstalowane."
-          # Dodatkowe sprawdzenie i eksport ANDROID_NDK_HOME
+
+          # ===>>> DODANO DEBUGOWANIE: Wyświetl dostępne pakiety NDK <<<===
+          echo "Listowanie dostępnych pakietów NDK..."
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "ndk;" || echo "Nie znaleziono dostępnych pakietów NDK lub błąd listowania."
+
+          echo "Przygotowanie do instalacji komponentów SDK/NDK..."
+          # Budujemy komendę jako zmienną dla przejrzystości
+          SDKMANAGER_CMD="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            \"platform-tools\" \
+            \"platforms;android-${ANDROID_PLATFORM}\" \
+            \"build-tools;${ANDROID_BUILD_TOOLS}\" \
+            \"ndk;${ANDROID_NDK}\""
+
+          # ===>>> DODANO DEBUGOWANIE: Wyświetl komendę przed wykonaniem <<<===
+          echo "--- Wykonywana komenda sdkmanager: ---"
+          echo "$SDKMANAGER_CMD"
+          echo "-------------------------------------"
+
+          # Wykonanie komendy
+          eval "$SDKMANAGER_CMD" # Używamy eval, aby poprawnie obsłużyć cudzysłowy w ścieżkach/nazwach
+
+          echo "Komponenty SDK/NDK zainstalowane (lub próba instalacji zakończona)."
+          # Reszta skryptu sprawdzającego ścieżkę NDK...
           INSTALLED_NDK_PATH=$(find $ANDROID_HOME/ndk -mindepth 1 -maxdepth 1 -type d | head -n 1)
           if [ -n "$INSTALLED_NDK_PATH" ]; then
              echo "Znaleziono NDK w: $INSTALLED_NDK_PATH"
@@ -65,11 +79,9 @@ jobs:
              export ANDROID_NDK_HOME=$INSTALLED_NDK_PATH
           else
              echo "Ostrzeżenie: Nie można było automatycznie znaleźć ścieżki NDK w $ANDROID_HOME/ndk."
-             # Polegamy na wartości z setup-android lub Buildozer spróbuje pobrać ponownie
           fi
           echo "ANDROID_HOME ustawione na: $ANDROID_HOME"
           echo "ANDROID_NDK_HOME (po sprawdzeniu) ustawione na: $ANDROID_NDK_HOME"
-
       # Krok 7: Weryfikacja AIDL (bardziej rygorystyczny)
       - name: Verify AIDL tool presence and permissions
         env:
