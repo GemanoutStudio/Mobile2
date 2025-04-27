@@ -11,3 +11,5 @@ android.api = 33
 android.ndk = 25b
 android.sdk_version = 34
 android.archs = arm64-v8a
+android.ndk_path = ~/.buildozer/android/platform/android-ndk
+android.sdk_path = ~/.buildozer/android/platform/android-sdk
