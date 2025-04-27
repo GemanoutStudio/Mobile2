@@ -5,25 +5,34 @@ package.name = farmlanddemo
 package.domain = gemanout.fld
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas # Dostosuj rozszerzenia do swoich plików
-version = 1.0  # Lub inna wersja, np. 0.1
+
+# Wersja aplikacji - MUSI być ustawiona
+version = 1.0 # Ustaw swoją wersję
+
 # Wymagania Python i przepisy python-for-android
-requirements = python3,pygame==2.5.0 # Lub inna wersja pygame, jeśli potrzebujesz
+# Uwaga: pygame==2.5.0 może wymagać nowszego NDK niż r25c, ale na razie zostawmy.
+# Jeśli będą problemy z kompilacją Pygame, można spróbować z nowszym NDK (np. r26d) lub starszym Pygame.
+requirements = python3,pygame==2.5.0
 
 # Uprawnienia Androida
 android.permissions = INTERNET # Dodaj inne, jeśli potrzebujesz
 
 # Ustawienia Androida
 android.minapi = 21
-android.target = 33 # Utrzymuj aktualne zgodnie z Google Play
+android.target = 33             # Musi pasować do ANDROID_PLATFORM w build.yml
 android.archs = arm64-v8a
-android.ndk_version = 25b
-android.build_tools_version = 34.0.0 # Upewnij się, że zgadza się z build.yml
+android.ndk_version = r25c      # Musi pasować do ANDROID_NDK w build.yml (zmieniono z 25b)
+android.build_tools_version = 34.0.0 # Musi pasować do ANDROID_BUILD_TOOLS w build.yml
 
-# (Opcjonalnie) Orientacja ekranu
+# Orientacja ekranu (opcjonalnie)
 # orientation = landscape
 
-# (Opcjonalnie) Tryb pełnoekranowy
+# Tryb pełnoekranowy (opcjonalnie)
 # fullscreen = 0
+
+# Usuń te linie, jeśli istnieją, aby polegać na zmiennych środowiskowych:
+# android.sdk_path = ...
+# android.ndk_path = ...
 
 [buildozer]
 # Poziom logowania (0 = quiet, 1 = basic, 2 = verbose)
