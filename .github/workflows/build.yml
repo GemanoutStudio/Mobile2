@@ -45,7 +45,7 @@ jobs:
         env:
           ANDROID_PLATFORM: "33"
           ANDROID_BUILD_TOOLS: "34.0.0"
-          ANDROID_NDK: "r25c" # Upewnij się, że tu jest r25c!
+          ANDROID_NDK: "26.1.10909125" # Upewnij się, że tu jest r25c!
         run: |
           echo "Akceptowanie licencji SDK..."
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || echo "Nie udało się zaakceptować licencji (może już zaakceptowane)."
